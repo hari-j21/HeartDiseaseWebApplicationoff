@@ -1,0 +1,396 @@
+﻿body{
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin:0;
+  background: linear-gradient(160deg, #f1f4fb 0%, #ffffff 100%);
+  color: #17203f;
+}
+
+.dashboard{
+  display:flex;
+}
+
+.sidebar{
+  width:220px;
+  background:#17325a;
+  color:#edf3ff;
+  height:100vh;
+  padding:22px;
+  position:fixed;
+  overflow:auto;
+  box-shadow: 2px 0 20px rgba(15,31,60,0.32);
+}
+
+.sidebar h2{
+  margin-bottom:20px;
+}
+
+.sidebar a{
+  display:block;
+  color:#e8f1ff;
+  padding:10px;
+  text-decoration:none;
+  margin-bottom:6px;
+  border-radius:8px;
+}
+
+.sidebar a:hover{
+  background:#1f3f70;
+}
+
+.content{
+  flex:1;
+  padding:34px;
+  margin-left:220px;
+}
+
+.card{
+  background: #ffffff;
+  padding: 24px;
+  border-radius:18px;
+  border:1px solid rgba(39, 78, 145, 0.1);
+  box-shadow: 0 10px 22px rgba(32, 57, 110, 0.10);
+  margin-bottom:22px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.card:hover{
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(32, 57, 110, 0.16);
+}
+
+.badge{
+  padding:5px 12px;
+  border-radius:50px;
+  font-weight:700;
+  letter-spacing:0.5px;
+}
+
+.badge.success{
+  background:#2d7da9;
+  color:#ffffff;
+}
+
+.badge.danger{
+  background:#cf4f62;
+  color:#ffffff;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  background:#ffffff;
+}
+
+th,td{
+  padding:12px;
+  border:1px solid #e5e9f4;
+}
+
+img{
+  margin-top:20px;
+  border-radius:12px;
+}
+
+.download-btn{
+  background:#1f417f;
+  color:white;
+  padding:10px 18px;
+  border:none;
+  border-radius:8px;
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+  margin-top:20px;
+  margin-right:10px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.download-btn:hover{
+  background:#1d3a6e;
+  transform: translateY(-1px);
+}
+
+.confidence-bar{
+  background:#2f5aa3;
+  height:20px;
+  border-radius:10px;
+  margin:10px 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-weight:700;
+  font-size:12px;
+  transition: width 0.8s ease-out;
+}
+
+.btn, .btn-dark {
+  display:inline-block;
+  padding:12px 24px;
+  background:#1f417f;
+  color:white;
+  text-decoration:none;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  font-size:15px;
+  font-weight:700;
+  margin-top:10px;
+  margin-right:10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.btn:hover, .btn-dark:hover {
+  background:#1a356c;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15,31,60,0.22);
+}
+
+.form-control, .form-select {
+  border-radius:10px;
+  border:1px solid rgba(70, 105, 155, 0.35);
+  box-shadow: inset 0 1px 4px rgba(26, 47, 89, 0.08);
+}
+
+label{
+  font-weight:600;
+  color:#1f2c4d;
+}
+
+.text-muted {
+  color:#6e7f9c !important;
+}
+
+.btn-primary{
+  background:#1f417f;
+}
+
+.btn-primary:hover{
+  background:#1a356c;
+}
+
+  padding:5px 10px;
+  border-radius:5px;
+}
+
+.badge.success{
+  background:#2ecc71;
+  color:white;
+}
+
+.badge.danger{
+  background:#e74c3c;
+  color:white;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  background:white;
+}
+
+th,td{
+  padding:10px;
+  border:1px solid #ddd;
+}
+
+img{
+  margin-top:20px;
+  border-radius:10px;
+}
+
+download-btn{
+  background:#2ecc71;
+  color:white;
+  padding:10px 20px;
+  border:none;
+  border-radius:6px;
+  font-size:14px;
+  font-weight:bold;
+  cursor:pointer;
+  margin-top:20px;
+  margin-right:10px;
+}
+
+.download-btn:hover{
+  background:#27ae60;
+}
+
+.confidence-bar{
+  background:#3498db;
+  height:20px;
+  border-radius:10px;
+  margin:10px 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-weight:bold;
+  font-size:12px;
+  transition:width 0.8s ease-out;
+}
+
+  background:#2ecc71;
+  color:white;
+  padding:10px 20px;
+  border:none;
+  border-radius:6px;
+  font-size:14px;
+  font-weight:bold;
+  cursor:pointer;
+  margin-top:20px;
+  margin-right:10px;
+}
+
+.download-btn:hover{
+  background:#27ae60;
+}
+
+.confidence-bar{
+  background:#3498db;
+  height:20px;
+  border-radius:10px;
+  margin:10px 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-weight:bold;
+  font-size:12px;
+  transition:width 0.8s ease-out;
+}
+
+hr{
+  border:none;
+  border-top:1px solid #ddd;
+  margin:20px 0;
+}
+
+h2{
+  color:#2c3e50;
+}
+
+h3{
+  color:#2c3e50;
+  margin-top:20px;
+  margin-bottom:10px;
+}
+
+p{
+  color:#555;
+  line-height:1.6;
+}
+
+.btn, .btn-dark {
+  display:inline-block;
+  padding:12px 24px;
+  background:#2f4f9c;
+  color:white;
+  text-decoration:none;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  font-size:15px;
+  font-weight:700;
+  margin-top:10px;
+  margin-right:10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.btn:hover, .btn-dark:hover {
+  background:#213c77;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15,31,60,0.22);
+}
+
+.form-control, .form-select {
+  border-radius:12px;
+  border:1px solid rgba(47, 79, 156, 0.35);
+  box-shadow: inset 0 1px 3px rgba(17, 51, 102, 0.08);
+}
+
+label{
+  font-weight:600;
+  color:#1d2f5f;
+}
+
+.text-muted {
+  color:#5f7397 !important;
+}
+
+.btn-primary{
+  background:#3498db;
+}
+
+.btn-primary:hover{
+  background:#2980b9;
+}
+
+/* existing project-specific styles */
+.hero {
+  background: linear-gradient(135deg, #ffffff, #eef2ff);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.glass-card {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 18px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.form-card {
+  background: white;
+  border-radius: 22px;
+  padding: 28px;
+  margin-top: -40px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.result-card {
+  background: white;
+  border-radius: 22px;
+  padding: 35px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.probability {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.form-control, .form-select {
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.hero-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ecg-box {
+  width: 320px;
+  height: 80px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #ced4da;
+  position: relative;
+}
+
+.ecg-line svg {
+  width: 100%;
+  height: 80px;
+}
+
+
+img {
+  margin-top: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+

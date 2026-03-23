@@ -1,0 +1,333 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CardioPredict | Analytics Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="dashboard">
+    <div class="sidebar">
+      <a href="/">Home</a>
+      <a href="/history">Patient History</a>
+      <a href="/analytics">Analytics</a>
+    </div>
+
+    <div class="content">
+      <h1>Heart Disease Analytics Dashboard</h1>
+
+      <div class="card mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <p class="text-muted mb-0">Visual dashboard with live insights on risk profiles and patient history.</p>
+          </div>
+          <div class="hero-visual" style="width:auto;">
+            <div class="heart-wrap">
+              <div class="heart"></div>
+            </div>
+            <div class="ecg-box">
+              <div class="ecg-line">
+                <svg viewBox="0 0 800 80" preserveAspectRatio="none">
+                  <path d="M0 40 L70 40 L90 10 L120 70 L150 40 L240 40 L270 25 L300 60 L340 40 L430 40 L460 15 L490 65 L520 40 L610 40 L640 25 L670 55 L700 40 L790 40" fill="none" stroke="#00ff88" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-4">
+        <h5>Filters</h5>
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label" for="riskFilter">Risk</label>
+            <select id="riskFilter" class="form-select">
+              <option value="all">All</option>
+              <option value="high">High Risk</option>
+              <option value="low">Low Risk</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="dateStart">Start Date</label>
+            <input type="date" id="dateStart" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="dateEnd">End Date</label>
+            <input type="date" id="dateEnd" class="form-control" />
+          </div>
+          <div class="col-md-3 d-flex align-items-end gap-2">
+            <button id="filterApply" class="btn btn-primary">Apply</button>
+            <button id="filterReset" class="btn btn-outline-secondary">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row gy-3">
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>Total Cases</h6>
+              <p id="statTotal" class="h3 fw-bold">{{ total }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>High Risk Cases</h6>
+              <p id="statHigh" class="h3 fw-bold">{{ high_count }}</p>
+              <small><span id="statHighPct">{{ high_risk_pct }}%</span> of records</small>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>Low Risk Cases</h6>
+              <p id="statLow" class="h3 fw-bold">{{ low_count }}</p>
+              <small><span id="statLowPct">{{ 100-high_risk_pct }}%</span> of records</small>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>Avg Age</h6>
+              <p id="statAvgAge" class="h3 fw-bold">{{ avg_age }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>Median Age</h6>
+              <p id="statMedianAge" class="h3 fw-bold">{{ median_age }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="card p-3 shadow-sm bg-light">
+              <h6>Avg Chol</h6>
+              <p id="statAvgChol" class="h3 fw-bold">{{ avg_chol }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <h5>Actionable Risk Insights</h5>
+        <ul>
+          <li><strong>High-risk rate:</strong> {{ high_risk_pct }}% of total entries.</li>
+          <li><strong>Most vulnerable group:</strong> age 60+ and male patients are trending higher risk.</li>
+          <li><strong>Checkups suggested:</strong> Cholesterol and blood pressure for patients with average values above mean.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="row gy-4">
+          <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+              <h5>Prediction Split</h5>
+              <canvas id="riskPie"></canvas>
+              <div class="mt-3 text-muted">Total records: {{ total }}</div>
+              <div class="mt-2 text-muted">Avg Chol: {{ avg_chol }} | Avg BP: {{ avg_trestbps }}</div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+              <h5>Age Group Distribution</h5>
+              <canvas id="ageBar"></canvas>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+              <h5>Sex Distribution</h5>
+              <canvas id="sexPie"></canvas>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card p-3 shadow-sm">
+              <h5>Chest Pain Type Distribution</h5>
+              <canvas id="cpBar"></canvas>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card p-3 shadow-sm">
+              <h5>Risk Trend Over Time</h5>
+              <canvas id="trendLine"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <h5>Recent 7 Predictions</h5>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Age</th>
+              <th>Sex</th>
+              <th>Chest Pain</th>
+              <th>Prediction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in recent_predictions %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ item.date }}</td>
+                <td>{{ item.age }}</td>
+                <td>{{ item.sex }}</td>
+                <td>{{ item.cp }}</td>
+                <td>{{ item.prediction }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ctxRiskPie = document.getElementById('riskPie').getContext('2d');
+    const ctxAgeBar = document.getElementById('ageBar').getContext('2d');
+    const ctxSexPie = document.getElementById('sexPie').getContext('2d');
+    const ctxCpBar = document.getElementById('cpBar').getContext('2d');
+    const ctxTrendLine = document.getElementById('trendLine').getContext('2d');
+
+    let riskPieChart, ageBarChart, sexPieChart, cpBarChart, trendLineChart;
+
+    function initializeCharts(data) {
+      riskPieChart = new Chart(ctxRiskPie, {
+        type: 'doughnut',
+        data: {
+          labels: ['High Risk', 'Low Risk'],
+          datasets: [{ data: [data.high_count, data.low_count], backgroundColor: ['#dc3545', '#198754'] }]
+        },
+        options: { plugins: { legend: { position: 'bottom' } } }
+      });
+
+      ageBarChart = new Chart(ctxAgeBar, {
+        type: 'bar',
+        data: {
+          labels: data.age_labels,
+          datasets: [{ label: 'Patients', data: data.age_values, backgroundColor: '#0d6efd' }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
+
+      sexPieChart = new Chart(ctxSexPie, {
+        type: 'pie',
+        data: {
+          labels: data.sex_labels,
+          datasets: [{ data: data.sex_values, backgroundColor: ['#0d6efd', '#6c757d'] }]
+        },
+        options: { plugins: { legend: { position: 'bottom' } } }
+      });
+
+      cpBarChart = new Chart(ctxCpBar, {
+        type: 'bar',
+        data: {
+          labels: data.cp_labels,
+          datasets: [{ label: 'Chest Pain Type', data: data.cp_values, backgroundColor: '#198754' }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
+
+      trendLineChart = new Chart(ctxTrendLine, {
+        type: 'line',
+        data: {
+          labels: data.history_dates,
+          datasets: [{
+            label: 'High Risk (1=yes,0=no)',
+            data: data.predictions_over_time,
+            fill: true,
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13,110,253,0.2)',
+            tension: 0.3
+          }]
+        },
+        options: { scales: { y: { min: 0, max: 1, ticks: { stepSize: 1 } } } }
+      });
+    }
+
+    function updateCharts(data) {
+      riskPieChart.data.datasets[0].data = [data.high_count, data.low_count];
+      riskPieChart.update();
+
+      ageBarChart.data.labels = data.age_labels;
+      ageBarChart.data.datasets[0].data = data.age_values;
+      ageBarChart.update();
+
+      sexPieChart.data.labels = data.sex_labels;
+      sexPieChart.data.datasets[0].data = data.sex_values;
+      sexPieChart.update();
+
+      cpBarChart.data.labels = data.cp_labels;
+      cpBarChart.data.datasets[0].data = data.cp_values;
+      cpBarChart.update();
+
+      trendLineChart.data.labels = data.history_dates;
+      trendLineChart.data.datasets[0].data = data.predictions_over_time;
+      trendLineChart.update();
+
+      document.getElementById('statTotal').textContent = data.total;
+      document.getElementById('statHigh').textContent = data.high_count;
+      document.getElementById('statHighPct').textContent = data.high_risk_pct + '%';
+      document.getElementById('statLow').textContent = data.low_count;
+      document.getElementById('statLowPct').textContent = (100 - data.high_risk_pct) + '%';
+      document.getElementById('statAvgAge').textContent = data.avg_age;
+      document.getElementById('statMedianAge').textContent = data.median_age;
+      document.getElementById('statAvgChol').textContent = data.avg_chol;
+    }
+
+    function refreshDashboard() {
+      const riskSelect = document.getElementById('riskFilter').value;
+      const startDate = document.getElementById('dateStart').value;
+      const endDate = document.getElementById('dateEnd').value;
+
+      let url = '/api/analytics?risk=' + encodeURIComponent(riskSelect);
+      if (startDate) url += '&start=' + encodeURIComponent(startDate);
+      if (endDate) url += '&end=' + encodeURIComponent(endDate);
+
+      fetch(url)
+        .then(res => res.json())
+        .then(data => updateCharts(data))
+        .catch(err => console.error('API analytics fetch error:', err));
+    }
+
+    document.getElementById('filterApply').addEventListener('click', function(e) {
+      e.preventDefault();
+      refreshDashboard();
+    });
+
+    document.getElementById('filterReset').addEventListener('click', function(e) {
+      e.preventDefault();
+      document.getElementById('riskFilter').value = 'all';
+      document.getElementById('dateStart').value = '';
+      document.getElementById('dateEnd').value = '';
+      refreshDashboard();
+    });
+
+    initializeCharts({
+      high_count: {{ high_count }},
+      low_count: {{ low_count }},
+      age_labels: {{ age_labels|tojson }},
+      age_values: {{ age_values|tojson }},
+      sex_labels: {{ sex_labels|tojson }},
+      sex_values: {{ sex_values|tojson }},
+      cp_labels: {{ cp_labels|tojson }},
+      cp_values: {{ cp_values|tojson }},
+      history_dates: {{ history_dates|tojson }},
+      predictions_over_time: {{ predictions_over_time|tojson }},
+      total: {{ total }},
+      high_risk_pct: {{ high_risk_pct }},
+      avg_age: {{ avg_age }},
+      median_age: {{ median_age }},
+      avg_chol: {{ avg_chol }}
+    });
+  </script>
+</body>
+</html>
