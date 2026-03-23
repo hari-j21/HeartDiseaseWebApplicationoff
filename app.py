@@ -1,58 +1,58 @@
-from flask import Flask, render_template, request, send_file, jsonify
-import numpy as np
-import pickle
 import os
-import pandas as pd
-import shap
-import matplotlib.pyplot as plt
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from datetime import datetime
 import io
-from database.db import db
-from models.patient import Patient
-from routes.history import history_bp
-from routes.analytics import analytics_bp
+import numpy as np
+import pandas as pd
+import pickle
+from datetime import datetime
 
+from flask import Flask, render_template, request, send_file, jsonify
+
+# Fix for matplotlib in server
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+# ML
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-# Feature names matching the dataset
-feature_names = [
-    "Age",
-    "Sex",
-    "Chest Pain Type",
-    "Resting Blood Pressure",
-    "Cholesterol",
-    "Fasting Blood Sugar",
-    "Rest ECG",
-    "Max Heart Rate",
-    "Exercise Angina",
-    "Oldpeak",
-    "Slope",
-    "Major Vessels",
-    "Thalassemia"
-]
+# PDF
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
 
+# DB
+from flask_sqlalchemy import SQLAlchemy
+
+# ------------------ APP SETUP ------------------ #
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///patients.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db.init_app(app)
+db = SQLAlchemy(app)
 
+# ------------------ DATABASE MODEL ------------------ #
+class Patient(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    age = db.Column(db.Float)
+    sex = db.Column(db.Float)
+    cp = db.Column(db.Float)
+    trestbps = db.Column(db.Float)
+    chol = db.Column(db.Float)
+    prediction = db.Column(db.String(50))
+
+# ------------------ INIT DB ------------------ #
 with app.app_context():
     db.create_all()
-    app.register_blueprint(history_bp)
-    app.register_blueprint(analytics_bp)
 
+# ------------------ FILES ------------------ #
 MODEL_FILE = "model.pkl"
 DATA_FILE = "heart.csv"
 
-
+# ------------------ TRAIN MODEL ------------------ #
 def train_model():
     df = pd.read_csv(DATA_FILE)
 
@@ -60,15 +60,12 @@ def train_model():
     y = df["target"]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
 
     model = Pipeline([
         ("scaler", StandardScaler()),
-        ("rf", RandomForestClassifier(n_estimators=500, random_state=42))
+        ("rf", RandomForestClassifier(n_estimators=200, random_state=42))
     ])
 
     model.fit(X_train, y_train)
@@ -78,162 +75,41 @@ def train_model():
 
     return model
 
-
-# Load model if exists, otherwise train
+# ------------------ LOAD MODEL ------------------ #
 if os.path.exists(MODEL_FILE):
     with open(MODEL_FILE, "rb") as f:
         model = pickle.load(f)
 else:
     model = train_model()
 
-# Initialize SHAP explainer for the random forest step
-explainer = shap.TreeExplainer(model.named_steps["rf"])
+# ------------------ REPORT ------------------ #
+def generate_report(data, risk, probability, confidence):
+    file_path = "static/report.pdf"
 
-
-def generate_report(patient_data, risk, probability, confidence):
-    """Generate a PDF medical report with prediction details."""
-    file_path = "static/patient_report.pdf"
-    
     styles = getSampleStyleSheet()
     story = []
-    
-    # Title
-    story.append(Paragraph("<b>Heart Disease AI Medical Report</b>", styles['Title']))
-    story.append(Spacer(1, 0.3*inch))
-    
-    # Prediction Results
-    story.append(Paragraph("<b>Prediction Results</b>", styles['Heading2']))
-    story.append(Paragraph(f"<b>Risk Level:</b> {risk}", styles['Normal']))
-    story.append(Paragraph(f"<b>Risk Probability:</b> {probability}%", styles['Normal']))
-    story.append(Paragraph(f"<b>AI Confidence:</b> {confidence}%", styles['Normal']))
-    story.append(Spacer(1, 0.3*inch))
-    
-    # Patient Medical Data
-    story.append(Paragraph("<b>Patient Medical Data</b>", styles['Heading2']))
-    
-    feature_labels = {
-        'age': 'Age',
-        'sex': 'Sex (0=Female, 1=Male)',
-        'cp': 'Chest Pain Type',
-        'trestbps': 'Resting Blood Pressure (mmHg)',
-        'chol': 'Cholesterol (mg/dl)',
-        'fbs': 'Fasting Blood Sugar > 120 mg/dl',
-        'restecg': 'Resting ECG Result',
-        'thalach': 'Max Heart Rate Achieved',
-        'exang': 'Exercise Induced Angina',
-        'oldpeak': 'ST Depression',
-        'slope': 'Slope of ST Segment',
-        'ca': 'Major Vessels',
-        'thal': 'Thalassemia'
-    }
-    
-    for key, value in patient_data.items():
-        label = feature_labels.get(key, key.replace('_', ' ').title())
-        story.append(Paragraph(f"<b>{label}:</b> {value}", styles['Normal']))
-    
-    story.append(Spacer(1, 0.2*inch))
-    story.append(Paragraph("<i>This report is generated by an AI model for informational purposes. Please consult a healthcare professional for medical advice.</i>", styles['Normal']))
-    
-    # Build PDF
+
+    story.append(Paragraph("Heart Disease Report", styles['Title']))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph(f"Risk: {risk}", styles['Normal']))
+    story.append(Paragraph(f"Probability: {probability}%", styles['Normal']))
+    story.append(Paragraph(f"Confidence: {confidence}%", styles['Normal']))
+
     doc = SimpleDocTemplate(file_path)
     doc.build(story)
-    
+
     return file_path
 
-
-def validate_inputs(form_data):
-    """Validate medical input values are within reasonable ranges."""
-    errors = []
-    
-    # Define valid ranges for medical values
-    ranges = {
-        'age': (18, 100, 'Age must be between 18 and 100'),
-        'sex': (0, 1, 'Sex must be 0 (Female) or 1 (Male)'),
-        'cp': (0, 3, 'Chest pain type must be 0-3'),
-        'trestbps': (80, 200, 'Resting blood pressure must be 80-200 mmHg'),
-        'chol': (100, 600, 'Cholesterol must be 100-600 mg/dl'),
-        'fbs': (0, 1, 'Fasting blood sugar must be 0 or 1'),
-        'restecg': (0, 2, 'Rest ECG must be 0-2'),
-        'thalach': (60, 220, 'Max heart rate must be 60-220 bpm'),
-        'exang': (0, 1, 'Exercise angina must be 0 or 1'),
-        'oldpeak': (0, 10, 'ST depression must be 0-10'),
-        'slope': (0, 2, 'ST slope must be 0-2'),
-        'ca': (0, 4, 'Major vessels must be 0-4'),
-        'thal': (0, 3, 'Thalassemia must be 0-3')
-    }
-    
-    for field, (min_val, max_val, msg) in ranges.items():
-        try:
-            value = float(form_data.get(field, 0))
-            if value < min_val or value > max_val:
-                errors.append(msg)
-        except ValueError:
-            errors.append(f"Invalid value for {field}")
-    
-    return errors
-
-
-def generate_insights(probability, confidence, importance_values):
-    """Generate actionable health insights based on prediction."""
-    insights = []
-    
-    # Risk level insights
-    if probability >= 70:
-        insights.append("⚠️ HIGH RISK: Immediate medical consultation strongly recommended")
-        insights.append("📋 Advice: Schedule appointment with cardiologist urgently")
-    elif probability >= 50:
-        insights.append("⚠️ MODERATE RISK: Consider scheduling medical evaluation")
-        insights.append("📋 Advice: Follow up with healthcare provider within 1-2 weeks")
-    else:
-        insights.append("✓ LOW RISK: Continue maintaining healthy lifestyle")
-        insights.append("📋 Advice: Regular check-ups recommended")
-    
-    # Confidence insights
-    if confidence >= 80:
-        insights.append(f"🎯 Model Confidence: HIGH ({confidence}%) - Prediction is reliable")
-    elif confidence >= 70:
-        insights.append(f"📊 Model Confidence: GOOD ({confidence}%) - Prediction is fairly reliable")
-    else:
-        insights.append(f"⚠️ Model Confidence: MODERATE ({confidence}%) - Seek professional validation")
-    
-    return insights
-
-
-def compare_with_history(current_risk, current_prob):
-    """Compare current prediction with patient history."""
-    all_predictions = Patient.query.all()
-    
-    if not all_predictions:
-        return {"message": "No previous predictions to compare", "count": 0}
-    
-    avg_probability = np.mean([p.probability if hasattr(p, 'probability') else 0 
-                               for p in all_predictions])
-    
-    comparison = {
-        "total_predictions": len(all_predictions),
-        "average_probability": round(avg_probability, 2),
-        "current_probability": current_prob,
-        "difference": round(current_prob - avg_probability, 2),
-        "status": "Above average" if current_prob > avg_probability else "Below average"
-    }
-    
-    return comparison
-
-
+# ------------------ ROUTES ------------------ #
 @app.route("/")
 def home():
     return render_template("index.html")
 
-
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
-        # Validate inputs first
-        validation_errors = validate_inputs(request.form)
-        if validation_errors:
-            return render_template("error.html", error="Validation Error: " + "; ".join(validation_errors))
-        
-        features = np.array([[
+        features = np.array([[  
             float(request.form["age"]),
             float(request.form["sex"]),
             float(request.form["cp"]),
@@ -255,169 +131,66 @@ def predict():
         probability = round(proba * 100, 2)
         confidence = round(max(proba, 1 - proba) * 100, 2)
 
-        if pred == 1:
-            risk = "High Risk"
-            badge = "danger"
-            message = "The model indicates a higher probability of heart disease."
-        else:
-            risk = "Low Risk"
-            badge = "success"
-            message = "The model indicates a lower probability of heart disease."
-        
-        # Save patient data to the database
+        risk = "High Risk" if pred == 1 else "Low Risk"
+
+        # Save to DB
         patient = Patient(
-            age=float(request.form["age"]),
-            sex=float(request.form["sex"]),
-            cp=float(request.form["cp"]),
-            trestbps=float(request.form["trestbps"]),
-            chol=float(request.form["chol"]),
+            age=features[0][0],
+            sex=features[0][1],
+            cp=features[0][2],
+            trestbps=features[0][3],
+            chol=features[0][4],
             prediction=risk
         )
         db.session.add(patient)
         db.session.commit()
 
-        # Explainable AI with SHAP - Bar chart for feature importance
-        shap_values = explainer.shap_values(features)
-        # Extract SHAP values for heart disease class (class 1) - shape (1, 13, 2) -> select class 1
-        importance = np.abs(shap_values[0, :, 1])
-
-        # Create aesthetic chart
-        fig, ax = plt.subplots(figsize=(12, 7))
-        
-        # Normalize importance for color gradient
-        norm_importance = (importance - importance.min()) / (importance.max() - importance.min())
-        colors = plt.cm.RdYlGn_r(norm_importance)
-        
-        bars = ax.barh(feature_names, importance, color=colors, edgecolor='#333', linewidth=0.8)
-        
-        # Add value labels on bars
-        for i, (feature, value) in enumerate(zip(feature_names, importance)):
-            ax.text(value + importance.max()*0.01, i, f'{value:.3f}', 
-                   va='center', fontsize=9, fontweight='bold')
-        
-        # Styling
-        ax.set_xlabel("Impact on Prediction", fontsize=13, fontweight='bold', labelpad=10)
-        ax.set_title("Medical Factors Influencing Prediction", fontsize=15, fontweight='bold', pad=20)
-        ax.grid(axis='x', alpha=0.3, linestyle='--', linewidth=0.7)
-        ax.set_axisbelow(True)
-        
-        # Remove top and right spines for cleaner look
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_color('#cccccc')
-        ax.spines['bottom'].set_color('#cccccc')
-        
-        # Adjust layout
-        fig.tight_layout()
-
-        plot_path = "static/explanation.png"
-        fig.savefig(plot_path, bbox_inches="tight", dpi=120, facecolor='white')
+        # Simple chart (instead of SHAP)
+        fig, ax = plt.subplots()
+        ax.bar(["Risk"], [probability])
+        plot_path = "static/chart.png"
+        fig.savefig(plot_path)
         plt.close()
 
-        # Generate PDF report
-        patient_data = request.form.to_dict()
-        report_path = generate_report(patient_data, risk, probability, confidence)
-
-        # Generate health insights
-        insights = generate_insights(probability, confidence, importance)
-        
-        # Compare with history
-        comparison = compare_with_history(risk, probability)
+        # PDF
+        report_path = generate_report(request.form, risk, probability, confidence)
 
         return render_template(
             "result.html",
             risk=risk,
-            badge=badge,
             probability=probability,
-            message=message,
-            shap_plot=plot_path,
             confidence=confidence,
-            report_path=report_path,
-            insights=insights,
-            comparison=comparison
+            chart=plot_path,
+            report=report_path
         )
 
     except Exception as e:
-        return render_template("error.html", error=str(e))
-
+        return str(e)
 
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
-    """JSON API endpoint for heart disease prediction."""
     try:
         data = request.get_json()
-        
-        # Validate inputs
-        validation_errors = validate_inputs(data)
-        if validation_errors:
-            return jsonify({"error": "Validation errors", "details": validation_errors}), 400
-        
-        features = np.array([[
+
+        features = np.array([[  
             float(data["age"]), float(data["sex"]), float(data["cp"]),
             float(data["trestbps"]), float(data["chol"]), float(data["fbs"]),
             float(data["restecg"]), float(data["thalach"]), float(data["exang"]),
             float(data["oldpeak"]), float(data["slope"]), float(data["ca"]),
             float(data["thal"])
         ]])
-        
+
         pred = model.predict(features)[0]
         proba = model.predict_proba(features)[0][1]
-        probability = round(proba * 100, 2)
-        confidence = round(max(proba, 1 - proba) * 100, 2)
-        
-        risk = "High Risk" if pred == 1 else "Low Risk"
-        
+
         return jsonify({
-            "success": True,
-            "risk": risk,
-            "probability": probability,
-            "confidence": confidence,
-            "prediction": int(pred),
-            "timestamp": datetime.now().isoformat()
+            "risk": "High Risk" if pred == 1 else "Low Risk",
+            "probability": round(proba * 100, 2)
         })
-    
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)})
 
-
-@app.route("/export/csv")
-def export_csv():
-    """Export all patient predictions to CSV."""
-    try:
-        patients = Patient.query.all()
-        
-        if not patients:
-            return jsonify({"error": "No patient data to export"}), 404
-        
-        data = []
-        for p in patients:
-            data.append({
-                'ID': p.id if hasattr(p, 'id') else 'N/A',
-                'Age': p.age if hasattr(p, 'age') else 'N/A',
-                'Sex': p.sex if hasattr(p, 'sex') else 'N/A',
-                'Chest Pain Type': p.cp if hasattr(p, 'cp') else 'N/A',
-                'Resting BP': p.trestbps if hasattr(p, 'trestbps') else 'N/A',
-                'Cholesterol': p.chol if hasattr(p, 'chol') else 'N/A',
-                'Prediction': p.prediction if hasattr(p, 'prediction') else 'N/A'
-            })
-        
-        df = pd.DataFrame(data)
-        
-        # Create CSV in memory
-        csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
-        csv_buffer.seek(0)
-        
-        return send_file(
-            io.BytesIO(csv_buffer.getvalue().encode()),
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=f'patient_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-        )
-    
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
+# ------------------ RUN ------------------ #
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
