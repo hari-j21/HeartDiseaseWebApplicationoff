@@ -1,5 +1,10 @@
 venv/
 __pycache__/
 *.pyc
-model.pkl
-.DS_Store
+*.pkl
+*.log
+*.sqlite3
+*.db
+.env
+static/*.png
+static/*.pdf

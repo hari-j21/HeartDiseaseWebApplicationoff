@@ -1,59 +1,51 @@
-import os
-import io
-import numpy as np
-import pandas as pd
-import pickle
-from datetime import datetime
-
 from flask import Flask, render_template, request, send_file, jsonify
-
-# Fix for matplotlib in server
+import numpy as np
+import pickle
+import os
+import pandas as pd
+import shap
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from datetime import datetime
+import io
+import logging
 
-# ML
+from database.db import db
+from models.patient import Patient
+
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score
 
-# PDF
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
+logging.basicConfig(
+    filename="app.log",
+    level=logging.ERROR,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
 
-# DB
-from flask_sqlalchemy import SQLAlchemy
-
-# ------------------ APP SETUP ------------------ #
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///patients.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+db.init_app(app)
 
-# ------------------ DATABASE MODEL ------------------ #
-class Patient(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    age = db.Column(db.Float)
-    sex = db.Column(db.Float)
-    cp = db.Column(db.Float)
-    trestbps = db.Column(db.Float)
-    chol = db.Column(db.Float)
-    prediction = db.Column(db.String(50))
-
-# ------------------ INIT DB ------------------ #
 with app.app_context():
     db.create_all()
 
-# ------------------ FILES ------------------ #
 MODEL_FILE = "model.pkl"
 DATA_FILE = "heart.csv"
 
-# ------------------ TRAIN MODEL ------------------ #
 def train_model():
+    if not os.path.exists(DATA_FILE):
+        raise FileNotFoundError("heart.csv not found")
+
     df = pd.read_csv(DATA_FILE)
 
     X = df.drop("target", axis=1)
@@ -70,38 +62,67 @@ def train_model():
 
     model.fit(X_train, y_train)
 
+    y_pred = model.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+
+    with open("model_metrics.txt", "w") as f:
+        f.write(f"Accuracy: {acc}")
+
     with open(MODEL_FILE, "wb") as f:
         pickle.dump(model, f)
 
     return model
 
-# ------------------ LOAD MODEL ------------------ #
 if os.path.exists(MODEL_FILE):
     with open(MODEL_FILE, "rb") as f:
         model = pickle.load(f)
 else:
     model = train_model()
 
-# ------------------ REPORT ------------------ #
-def generate_report(data, risk, probability, confidence):
-    file_path = "static/report.pdf"
+explainer = shap.TreeExplainer(model.named_steps["rf"])
 
+def generate_report(patient_data, risk, probability, confidence):
+    file_path = f"static/report_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("Heart Disease Report", styles['Title']))
-    story.append(Spacer(1, 10))
+    story.append(Paragraph("AI CardioCare Medical Report", styles['Title']))
+    story.append(Spacer(1, 0.2*inch))
+    story.append(Paragraph(f"Date: {datetime.now().strftime('%d-%m-%Y')}", styles['Normal']))
+    story.append(Spacer(1, 0.2*inch))
 
-    story.append(Paragraph(f"Risk: {risk}", styles['Normal']))
+    story.append(Paragraph("Prediction Results", styles['Heading2']))
+    story.append(Paragraph(f"Risk Level: {risk}", styles['Normal']))
     story.append(Paragraph(f"Probability: {probability}%", styles['Normal']))
     story.append(Paragraph(f"Confidence: {confidence}%", styles['Normal']))
+    story.append(Spacer(1, 0.2*inch))
+
+    for key, value in patient_data.items():
+        story.append(Paragraph(f"{key}: {value}", styles['Normal']))
 
     doc = SimpleDocTemplate(file_path)
     doc.build(story)
 
     return file_path
 
-# ------------------ ROUTES ------------------ #
+def generate_insights(data, probability, confidence):
+    insights = []
+
+    if probability >= 75:
+        insights.append("HIGH RISK - Consult doctor immediately")
+    elif probability >= 50:
+        insights.append("MODERATE RISK - Medical check recommended")
+    else:
+        insights.append("LOW RISK - Maintain healthy lifestyle")
+
+    if float(data['chol']) > 240:
+        insights.append("High cholesterol detected")
+
+    if float(data['trestbps']) > 140:
+        insights.append("High blood pressure detected")
+
+    return insights
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -109,7 +130,7 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
-        features = np.array([[  
+        features = np.array([[
             float(request.form["age"]),
             float(request.form["sex"]),
             float(request.form["cp"]),
@@ -131,48 +152,65 @@ def predict():
         probability = round(proba * 100, 2)
         confidence = round(max(proba, 1 - proba) * 100, 2)
 
-        risk = "High Risk" if pred == 1 else "Low Risk"
+        if probability >= 75:
+            risk = "High Risk"
+            badge = "danger"
+        elif probability >= 50:
+            risk = "Moderate Risk"
+            badge = "warning"
+        else:
+            risk = "Low Risk"
+            badge = "success"
 
-        # Save to DB
         patient = Patient(
-            age=features[0][0],
-            sex=features[0][1],
-            cp=features[0][2],
-            trestbps=features[0][3],
-            chol=features[0][4],
+            age=float(request.form["age"]),
+            sex=float(request.form["sex"]),
+            cp=float(request.form["cp"]),
+            trestbps=float(request.form["trestbps"]),
+            chol=float(request.form["chol"]),
+            probability=probability,
+            confidence=confidence,
             prediction=risk
         )
+
         db.session.add(patient)
         db.session.commit()
 
-        # Simple chart (instead of SHAP)
-        fig, ax = plt.subplots()
-        ax.bar(["Risk"], [probability])
-        plot_path = "static/chart.png"
-        fig.savefig(plot_path)
+        plot_path = f"static/explanation_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+
+        shap_values = explainer.shap_values(features)
+        importance = np.abs(shap_values.values[0])
+
+        plt.figure(figsize=(10,6))
+        plt.barh(range(len(importance)), importance)
+        plt.yticks(range(len(importance)))
+        plt.savefig(plot_path)
         plt.close()
 
-        # PDF
-        report_path = generate_report(request.form, risk, probability, confidence)
+        report_path = generate_report(request.form.to_dict(), risk, probability, confidence)
+        insights = generate_insights(request.form, probability, confidence)
 
         return render_template(
             "result.html",
             risk=risk,
+            badge=badge,
             probability=probability,
             confidence=confidence,
-            chart=plot_path,
-            report=report_path
+            shap_plot=plot_path,
+            report_path=report_path,
+            insights=insights
         )
 
     except Exception as e:
-        return str(e)
+        logging.error(str(e))
+        return render_template("error.html", error="Something went wrong")
 
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
     try:
         data = request.get_json()
 
-        features = np.array([[  
+        features = np.array([[
             float(data["age"]), float(data["sex"]), float(data["cp"]),
             float(data["trestbps"]), float(data["chol"]), float(data["fbs"]),
             float(data["restecg"]), float(data["thalach"]), float(data["exang"]),
@@ -183,14 +221,21 @@ def api_predict():
         pred = model.predict(features)[0]
         proba = model.predict_proba(features)[0][1]
 
+        probability = round(proba * 100, 2)
+        confidence = round(max(proba, 1 - proba) * 100, 2)
+
+        risk = "High Risk" if probability >= 50 else "Low Risk"
+
         return jsonify({
-            "risk": "High Risk" if pred == 1 else "Low Risk",
-            "probability": round(proba * 100, 2)
+            "risk": risk,
+            "probability": probability,
+            "confidence": confidence,
+            "prediction": int(pred),
+            "timestamp": datetime.now().isoformat()
         })
 
     except Exception as e:
         return jsonify({"error": str(e)})
 
-# ------------------ RUN ------------------ #
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(debug=False)
